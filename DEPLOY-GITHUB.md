@@ -1,4 +1,4 @@
-# การ Deploy ไปยัง GitHub Pages
+# การ Deploy Vite Project ไปยัง GitHub Pages
 
 ## ต้องเตรียมอะไรก่อน
 
@@ -6,6 +6,7 @@
 - Repository สร้างไว้แล้ว
 - Git ติดตั้งไว้แล้ว
 - Node.js และ npm ติดตั้งไว้แล้ว
+- Vite project สร้างเสร็จแล้ว
 
 ---
 
@@ -60,10 +61,11 @@ npm install --save-dev gh-pages
 ```json
 {
   "scripts": {
-    "start": "react-scripts start",
-    "build": "react-scripts build",
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
     "predeploy": "npm run build",
-    "deploy": "gh-pages -d build",
+    "deploy": "gh-pages -d dist",
     ...
   }
 }
@@ -71,22 +73,48 @@ npm install --save-dev gh-pages
 
 **อธิบาย:**
 
-- `predeploy`: รันก่อน deploy โดยอัตโนมัติ (build โปรเจกต์)
-- `deploy`: ส่งไฟล์จากโฟลเดอร์ `build` ไปยัง GitHub
+- `predeploy`: รันก่อน deploy โดยอัตโนมัติ (build โปรเจกต์ไปยัง `dist` folder)
+- `deploy`: ส่งไฟล์จากโฟลเดอร์ `dist` ไปยัง GitHub (Vite ใช้ `dist` แทน `build`)
+
+### 2.3 สร้าง vite.config.js
+
+สร้างไฟล์ `vite.config.js` ในโฟลเดอร์ root ของโปรเจกต์:
+
+```javascript
+import { defineConfig } from "vite";
+
+export default defineConfig({
+  base: "/YOUR_REPO_NAME/",
+});
+```
+
+**สิ่งสำคัญ:** แทนที่ `YOUR_REPO_NAME` ด้วยชื่อ repository ของคุณ
+
+**ตัวอย่างจริง (ถ้า repo ชื่อ my-app-vanilla):**
+
+```javascript
+export default defineConfig({
+  base: "/my-app-vanilla/",
+});
+```
+
+**เหตุผล:** Vite ต้องรู้ว่า project อยู่ใน subdirectory ของ GitHub Pages เพื่อให้ assets โหลดถูกต้อง
 
 ---
 
 ## ขั้นตอนที่ 3: Push โค้ดไปยัง GitHub
 
-ก่อน deploy ให้แน่ใจว่า commit code ไปยัง repository แล้ว:
+ก่อน deploy ให้แน่ใจว่า commit ไฟล์ที่แก้ไข (รวม `vite.config.js` และ `package.json`) ไปยัง repository:
 
 ```bash
 git add .
-git commit -m "Prepare for GitHub Pages deployment"
+git commit -m "Setup Vite config for GitHub Pages"
 git push origin main
 ```
 
 (แทน `main` ด้วยชื่อ branch ของคุณถ้าต่างกัน)
+
+**หมายเหตุ:** `git push` ส่ง **source code** ไปยัง `main` branch เท่านั้น ไม่ได้ deploy ขึ้นเว็บ
 
 ---
 
@@ -100,7 +128,7 @@ npm run deploy
 
 **สิ่งที่เกิดขึ้น:**
 
-1. npm จะรัน `predeploy` → build โปรเจกต์
+1. npm จะรัน `predeploy` → build โปรเจกต์ไปยัง `dist` folder
 2. สร้าง branch `gh-pages` โดยอัตโนมัติ (ถ้ายังไม่มี)
 3. ส่งไฟล์ build ไปยัง `gh-pages` branch
 4. คุณจะเห็นข้อความ "Published" เมื่อสำเร็จ
@@ -108,7 +136,7 @@ npm run deploy
 **ตัวอย่างผลลัพธ์:**
 
 ```
-> gh-pages -d build
+> gh-pages -d dist
 Publishing files to gh-pages branch on github.com/your-username/my-app.git
 Published
 ```
@@ -166,30 +194,50 @@ npm run deploy
 
 ## Common Issues และการแก้ไข
 
-### ปัญหา 1: "404 Not Found"
+### ปัญหา 1: "ENOENT: no such file or directory, stat 'build'"
 
-**สาเหตุ:** โฟลเดอร์ปลายทาง URL ไม่ถูกต้อง
+**สาเหตุ:** Deploy script มองหา `build` folder แต่ Vite ใช้ `dist` folder
 
 **วิธีแก้:**
 
-- ตรวจสอบ `homepage` ใน `package.json` ตรงกับ URL หรือไม่
-- ตรวจสอบ branch `gh-pages` มี build files หรือไม่
+ตรวจสอบ `package.json` มี script นี้:
 
-```bash
-# ลองดูว่ามี gh-pages branch หรือไม่
-git branch -r
+```json
+"deploy": "gh-pages -d dist"
 ```
 
-### ปัญหา 2: CSS/Images ไม่โหลด
+ไม่ใช่:
 
-**สาเหตุ:** Path ไม่ถูกต้อง (relative path)
+```json
+"deploy": "gh-pages -d build"
+```
+
+### ปัญหา 2: "404 Not Found" หรือไม่แสดงเนื้อหา
+
+**สาเหตุ:** `vite.config.js` ไม่มีหรือ base path ไม่ถูกต้อง
 
 **วิธีแก้:**
 
-- ใชญ์ `%PUBLIC_URL%` ต่อหน้า path ในไฟล์ HTML
-- ตัวอย่าง: `<link rel="icon" href="%PUBLIC_URL%/favicon.ico">`
+ตรวจสอบ `vite.config.js` มีอยู่และ base path ตรงกับ repo name:
 
-### ปัญหา 3: gh-pages command not found
+```javascript
+export default defineConfig({
+  base: "/my-app-vanilla/", // ต้องตรงกับชื่อ repo
+});
+```
+
+### ปัญหา 3: Assets (CSS/JS/Images) ไม่โหลด
+
+**สาเหตุ:** Base path ไม่ถูกต้อง ทำให้ browser ไม่พบ assets
+
+**วิธีแก้:**
+
+1. ตรวจสอบชื่อ repository ใน `vite.config.js` ให้ตรงกับ GitHub
+2. ตรวจสอบว่า `base` ลงท้ายด้วย `/` (เช่น `/my-app/` ไม่ใช่ `/my-app`)
+3. รัน `npm run deploy` อีกครั้ง
+4. รีโหลดเว็บและเคลียร์ cache (Ctrl+Shift+R)
+
+### ปัญหา 4: gh-pages command not found
 
 **สาเหตุ:** โปรแกรมไม่ติดตั้ง
 
@@ -199,7 +247,7 @@ git branch -r
 npm install --save-dev gh-pages
 ```
 
-### ปัญหา 4: Permission denied
+### ปัญหา 5: Permission denied
 
 **สาเหตุ:** ไม่มีอนุญาต push ไปยัง repository
 
@@ -210,53 +258,64 @@ npm install --save-dev gh-pages
 
 ---
 
-## ตัวอย่าง package.json ที่สมบูรณ์
+## ตัวอย่าง package.json ที่สมบูรณ์ (Vite Project)
 
 ```json
 {
   "name": "my-app",
-  "version": "0.1.0",
-  "homepage": "https://john-doe.github.io/my-app",
+  "version": "0.0.0",
+  "type": "module",
+  "homepage": "https://wittawasatinformaticsbuuacth.github.io/my-app-vanilla",
   "private": true,
-  "dependencies": {
-    "react": "^18.0.0",
-    "react-dom": "^18.0.0"
-  },
   "scripts": {
-    "start": "react-scripts start",
-    "build": "react-scripts build",
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
     "predeploy": "npm run build",
-    "deploy": "gh-pages -d build",
-    "test": "react-scripts test"
+    "deploy": "gh-pages -d dist"
   },
   "devDependencies": {
-    "gh-pages": "^4.0.0"
+    "gh-pages": "^6.3.0",
+    "vite": "^7.3.1"
   }
 }
 ```
+
+**สำคัญ:**
+
+- `homepage`: ต้องอยู่ในรูปแบบ `https://USERNAME.github.io/REPO_NAME`
+- `deploy`: งานต้องชี้ไป `dist` ไม่ใช่ `build` (Vite ใช้ `dist`)
+- ต้องมี `vite.config.js` ด้วย
 
 ---
 
 ## สรุปคำสั่ง (Quick Reference)
 
 ```bash
-# Step 1: ติดตั้ง
+# Step 1: ติดตั้ง gh-pages
 npm install --save-dev gh-pages
 
-# Step 2: แก้ไข package.json (ตามด้านบน)
+# Step 2: สร้าง/แก้ไข vite.config.js
+# export default defineConfig({
+#   base: '/YOUR_REPO_NAME/'
+# })
 
-# Step 3: Push โค้ด
+# Step 3: อัปเดต package.json
+# - เพิ่ม "homepage" ฟิลด์
+# - เพิ่ม deploy script: "deploy": "gh-pages -d dist"
+
+# Step 4: Push โค้ด
 git add .
 git commit -m "Setup GitHub Pages"
 git push origin main
 
-# Step 4: Deploy
+# Step 5: Deploy
 npm run deploy
 
-# Step 5: ตั้งค่า GitHub (ด้วยเว็บ)
+# Step 6: ตั้งค่า GitHub (ด้วยเว็บ)
 # → Settings → Pages → gh-pages branch
 
-# Step 6: ตรวจสอบ
+# Step 7: ตรวจสอบ
 # https://YOUR_USERNAME.github.io/YOUR_REPO_NAME
 ```
 
